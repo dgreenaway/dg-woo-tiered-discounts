@@ -1,0 +1,22 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.idea/
+.vscode/
+*.sublime-*
+*.code-workspace
+
+# Backups / scratch
+*.bak
+*.orig
+*.rej
+*~
+*.swp
+
+# Build / dependency output (not used yet, but keeps stray installs out)
+node_modules/
+vendor/
+*.zip

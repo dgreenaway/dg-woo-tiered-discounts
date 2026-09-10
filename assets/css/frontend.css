@@ -1,0 +1,79 @@
+/* ==========================================================================
+   DG Quantity Discounts — front end
+   ========================================================================== */
+
+.dg-qty-tiers {
+	margin-top: 16px;
+}
+
+.dg-qty-tiers-heading {
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: #374151;
+	margin: 0 0 10px;
+}
+
+.dg-qty-tiers-table {
+	width: 100%;
+	max-width: 420px;
+	border-collapse: collapse;
+	border: 1px solid #e5e7eb;
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.dg-qty-tiers-table th,
+.dg-qty-tiers-table td {
+	padding: 12px 16px;
+	font-size: 13px;
+	text-align: left;
+	border-bottom: 1px solid #e5e7eb;
+}
+
+.dg-qty-tiers-table th {
+	background: #f3f4f6;
+	font-weight: 600;
+	color: #374151;
+}
+
+.dg-qty-tiers-table td:first-child {
+	color: #374151;
+	font-weight: 600;
+}
+
+.dg-qty-tiers-table td:last-child {
+	color: #16a34a;
+	font-weight: 600;
+}
+
+.dg-qty-tiers-table tbody tr:last-child td {
+	border-bottom: none;
+}
+
+/* Row matching the quantity currently entered */
+.dg-qty-tiers-table tr.dg-active-tier td {
+	background: #f0fdf4;
+}
+
+/* --------------------------------------------------------------------------
+   Theme compatibility
+   Some themes lay out form.cart as a flex row (quantity | add to cart | ...).
+   The block is injected into that row, so without a full-width flex basis it
+   sits beside the quantity box instead of dropping onto its own line.
+   max-width must NOT be set on this element — a flex item's wrap size is
+   clamped by max-width, which silently defeats flex-basis:100%. The visible
+   width cap lives on .dg-qty-tiers-table instead.
+   Harmless on themes whose cart form is not a flex container.
+   -------------------------------------------------------------------------- */
+.single-product form.cart .dg-qty-tiers {
+	flex: 1 1 100%;
+	width: 100%;
+	max-width: none;
+}
+
+/* Note: the "Bulk discount: X% off" line on cart/checkout items is rendered by
+   WooCommerce as <dl class="variation">, so it inherits whatever the active
+   theme styles that as. No styling is shipped for it here — restyling
+   dl.variation would affect every item-meta on the site, not just this one. */
