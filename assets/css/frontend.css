@@ -1,5 +1,11 @@
 /* DG Quantity Discounts, front end.
-   Deliberately plain so it doesn't fight the theme. Override any of it. */
+   Deliberately plain so it doesn't fight the theme. Override any of it.
+
+   A fair bit of !important below, which isn't laziness: WooCommerce themes
+   almost all style bare table/th/td, and several do it with selectors like
+   "tr:first-child th" whose :first-child counts as class-level specificity and
+   therefore beats a plain .dg-qty-tiers-table th. Losing those ties leaves
+   stray borders and padding in the middle of the table. */
 
 .dg-qty-tiers {
 	margin-top: 16px;
@@ -14,49 +20,90 @@
 	margin: 0 0 10px;
 }
 
+/* The rounded outline goes on the wrapper, not the <table>. border-radius on a
+   table is unreliable once cells have their own background: the header fill
+   paints over the top corners and squares them off again. A plain block
+   wrapper clips it properly. */
+.dg-qty-tiers-tablewrap {
+	max-width: 420px;
+	margin-bottom: 12px;
+	border: 1px solid #cbd5e0;
+	border-radius: 10px;
+	overflow: hidden;
+	background: #fff;
+}
+
 .dg-qty-tiers-table {
 	width: 100%;
-	max-width: 420px;
+	max-width: none;
 	border-collapse: collapse;
-	border: 1px solid #e5e7eb;
-	border-radius: 6px;
-	overflow: hidden;
+	border-radius: 0;
+	/* Themes commonly set "table { margin: 0 0 20px }", which shows up as dead
+	   white space under the last row, inside the wrapper's rounded border. */
+	margin: 0 !important;
+}
+
+.dg-qty-tiers-table,
+.dg-qty-tiers-table thead,
+.dg-qty-tiers-table tbody,
+.dg-qty-tiers-table tr,
+.dg-qty-tiers-table th,
+.dg-qty-tiers-table td {
+	border: none !important;
 }
 
 .dg-qty-tiers-table th,
 .dg-qty-tiers-table td {
-	padding: 12px 16px;
+	padding: 9px 16px !important;
 	font-size: 13px;
+	line-height: 1.4;
 	text-align: left;
-	border-bottom: 1px solid #e5e7eb;
 }
 
-.dg-qty-tiers-table th {
-	background: #f3f4f6;
+/* Header. text-transform and letter-spacing need !important because themes
+   routinely uppercase and track bare th. */
+.dg-qty-tiers-table thead th {
+	background: #80cbff !important;
+	color: #292929 !important;
+	font-weight: 700;
+	font-size: 13px;
+	letter-spacing: normal !important;
+	text-transform: none !important;
+}
+
+/* Plain white rows. The !important is doing real work: plenty of themes and
+   accessibility plugins zebra-stripe every table on the site, which puts
+   alternating bands through this one. */
+.dg-qty-tiers-table tbody tr,
+.dg-qty-tiers-table tbody tr td {
+	background: #fff !important;
+}
+
+/* Dividers between rows only, nothing round the outside, the wrapper draws
+   that. !important because the blanket border reset above would kill it. */
+.dg-qty-tiers-table tbody td {
+	color: #6b7280;
+	border-top: 1px solid #edf1f5 !important;
+}
+
+.dg-qty-tiers-table tbody tr:first-child td {
+	border-top: none !important;
+}
+
+.dg-qty-tiers-table tbody td:first-child {
+	color: #292929;
 	font-weight: 600;
-	color: #374151;
 }
 
-.dg-qty-tiers-table td:first-child {
-	color: #374151;
-	font-weight: 600;
-}
-
-.dg-qty-tiers-table td:last-child {
-	color: #16a34a;
-	font-weight: 600;
-}
-
-.dg-qty-tiers-table tbody tr:last-child td {
-	border-bottom: none;
-}
-
-/* whichever row the current qty falls into */
+/* Whichever row the current qty falls into. A faint tint of the header colour,
+   so it reads as "you are here" rather than as another stripe. */
 .dg-qty-tiers-table tr.dg-active-tier td {
-	background: #f0fdf4;
+	background: #eaf6ff !important;
+	color: #292929 !important;
 }
 
-/* Theme compat.
+/* --------------------------------------------------------------------------
+   Theme compat
 
    Plenty of themes make form.cart a flex row (qty | add to cart | buy now).
    We get injected into that row, so without a 100% basis the table just parks
@@ -65,7 +112,7 @@
    Do NOT put a max-width on this rule. A flex item's wrap width gets clamped by
    max-width, so capping it here quietly kills the flex-basis and you're back to
    it sitting beside the qty box, which took embarrassingly long to work out.
-   The visible width cap goes on .dg-qty-tiers-table above.
+   The visible width cap goes on .dg-qty-tiers-tablewrap above.
 
    Does nothing on themes where the cart form isn't flex, so it's safe to leave in. */
 .single-product form.cart .dg-qty-tiers {
@@ -74,6 +121,81 @@
 	max-width: none;
 }
 
-/* The "Bulk discount: x% off" line in the cart is a <dl class="variation">, so it
-   picks up whatever the theme does with those. Not styling it here on purpose,
-   that selector hits every item meta on the site and not just ours. */
+/* --------------------------------------------------------------------------
+   was / now / save on discounted cart lines
+   -------------------------------------------------------------------------- */
+
+.dg-tier-pricing {
+	display: block;
+	line-height: 1.45;
+}
+
+.dg-tier-was {
+	display: inline-block;
+	margin-right: 6px;
+	color: #9ca3af !important;
+	font-weight: 400 !important;
+	text-decoration: line-through !important;
+}
+
+/* <ins> gets underlined by default, hence the reset */
+.dg-tier-now {
+	display: inline-block;
+	color: #292929 !important;
+	font-weight: 700 !important;
+	text-decoration: none !important;
+	background: transparent !important;
+}
+
+.dg-tier-saving {
+	display: block;
+	margin-top: 2px;
+	color: #c0392b !important;
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+/* The "Bulk discount: x% off" line in the cart is a <dl class="variation">, so
+   it picks up whatever the theme does with those. Not styling it here on
+   purpose, that selector hits every item meta on the site and not just ours. */
+
+/* --------------------------------------------------------------------------
+   Side cart compat (XootiX WooCommerce Side Cart)
+
+   That plugin builds its line as loose spans, qty / "X" / unit price / "=" /
+   total, in a flex row. Three prices won't sit next to "71 X £18.99" in a
+   column that narrow, so the totals span is given a full basis to break the
+   line deliberately rather than wrap wherever it runs out, and the now
+   pointless trailing "=" is dropped.
+
+   Scoped to our own block throughout: nothing here touches how that plugin
+   renders lines with no quantity discount on them.
+
+   :has() isn't universal. Where it's missing the "=" simply stays, which is
+   the layout you'd have had anyway, so it degrades to no worse than before. */
+.xoo-wsc-container .xoo-wsc-qty-price > span:has(.dg-tier-pricing) {
+	flex: 1 1 100% !important;
+	margin-top: 2px;
+}
+
+.xoo-wsc-container .xoo-wsc-qty-price:has(.dg-tier-pricing) > span:nth-child(4) {
+	display: none !important;
+}
+
+.xoo-wsc-container .dg-tier-was,
+.xoo-wsc-container .dg-tier-was bdi,
+.xoo-wsc-container .dg-tier-was .amount,
+.xoo-wsc-container .dg-tier-now,
+.xoo-wsc-container .dg-tier-now bdi,
+.xoo-wsc-container .dg-tier-now .amount {
+	font-size: 13px !important;
+	line-height: 1.5 !important;
+}
+
+.xoo-wsc-container .dg-tier-saving,
+.xoo-wsc-container .dg-tier-saving bdi,
+.xoo-wsc-container .dg-tier-saving .amount {
+	font-size: 12px !important;
+	margin-top: 1px;
+}

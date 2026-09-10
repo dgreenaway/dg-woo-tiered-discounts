@@ -19,6 +19,9 @@ subscription or dragged in half a page builder to render a four row table.
   quantity falls into.
 - Applies the discount in the cart and at checkout, with a
   "Bulk discount: 2.5% off" note on the line item so it doesn't look like a bug.
+- Rewrites the line total on any discounted row to show the old price struck
+  through, the new price, and what they saved in money rather than just a
+  percentage. Follows the shop's inc/ex tax display setting.
 - Mini cart, checkout, order emails and the saved order all follow along for
   free, they're reading the same cart and order objects.
 
@@ -53,9 +56,13 @@ Most of these cost me an hour each, so they're written down.
   `woocommerce_before_calculate_totals` fires several times in a single request.
   If you adjust whatever price is currently set rather than starting fresh, you
   discount the discount and the totals drift on every refresh.
-- **The `min()` in the pricing loop is load bearing.** It stops a 2% bulk tier
-  from overriding a product that's already 30% off in a sale. Cheapest price for
-  the customer wins.
+- **`get_tier_prices()` is the only place the maths happens**, and both the
+  charging and the "was / now / save" display go through it. Work it out twice
+  in two places and eventually the cart charges one thing while the saving line
+  claims another, which is worse than showing no saving at all.
+- **The `min()` in there is load bearing.** It stops a 2% bulk tier from
+  overriding a product that's already 30% off in a sale. Cheapest price for the
+  customer wins.
 - **Discount comes off the ex-tax price**, tax is then worked out on the reduced
   amount. Right way round for VAT, and it's what WooCommerce does for its own
   sale prices and coupons anyway.

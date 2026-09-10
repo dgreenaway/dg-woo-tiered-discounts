@@ -65,6 +65,7 @@ final class DGQD_Plugin {
 		// the bit that actually does the discounting
 		add_action( 'woocommerce_before_calculate_totals', array( __CLASS__, 'apply_tier_pricing' ) );
 		add_filter( 'woocommerce_get_item_data', array( __CLASS__, 'cart_item_data' ), 10, 2 );
+		add_filter( 'woocommerce_cart_item_subtotal', array( __CLASS__, 'subtotal_html' ), 10, 2 );
 	}
 
 	/* ---- tiers ---- */
@@ -271,17 +272,49 @@ final class DGQD_Plugin {
 	/* ---- pricing ---- */
 
 	/**
+	 * Unit prices for a product at a given quantity.
+	 *
+	 * Returns array( 'base' => what they'd pay with no tier, 'now' => what to
+	 * charge ), or null if the product has no tiers or no usable price.
+	 *
+	 * Both the pricing and the "was / now / save" display go through this, on
+	 * purpose. Work the numbers out twice in two places and sooner or later the
+	 * cart says one thing and the saving line says another.
+	 *
+	 * The min() is what stops a small bulk % undercutting a bigger sale price
+	 * that's already on the product. Cheapest for the customer wins.
+	 */
+	public static function get_tier_prices( $product, $quantity ) {
+		$tiers = self::get_tiers( $product->get_id() );
+		if ( empty( $tiers ) ) {
+			return null;
+		}
+
+		$regular_price = (float) $product->get_regular_price();
+		if ( $regular_price <= 0 ) {
+			return null;
+		}
+
+		$base_price = $product->is_on_sale() ? (float) $product->get_sale_price() : $regular_price;
+		$tier       = self::get_tier_for_quantity( $tiers, $quantity );
+
+		if ( ! $tier ) {
+			return array( 'base' => $base_price, 'now' => $base_price );
+		}
+
+		$discounted = round( $regular_price * ( 1 - $tier['percent'] / 100 ), 2 );
+
+		return array( 'base' => $base_price, 'now' => min( $discounted, $base_price ) );
+	}
+
+	/**
 	 * Sets the discounted unit price on any line that reaches a tier.
 	 *
-	 * Two things to know before touching this:
-	 *
-	 * 1. This hook fires more than once per request (add to cart, qty update, the
-	 *    various checkout AJAX calls). Always work back from get_regular_price().
-	 *    If you adjust whatever price is currently set you end up discounting the
-	 *    already discounted price and the totals drift every refresh.
-	 *
-	 * 2. The min() is there so a small bulk % can't undercut a bigger sale price
-	 *    that's already on the product. Whichever is cheaper for the customer wins.
+	 * This hook fires more than once per request (add to cart, qty update, the
+	 * various checkout AJAX calls), which is why get_tier_prices() always works
+	 * back from the regular price. Adjust whatever price is currently set and you
+	 * end up discounting the already discounted price, with the totals drifting
+	 * on every refresh.
 	 *
 	 * Discount comes off the ex-tax price and tax gets worked out on the reduced
 	 * amount, which is both correct for VAT and what WC does for its own sales.
@@ -292,29 +325,46 @@ final class DGQD_Plugin {
 		}
 
 		foreach ( $cart->get_cart() as $cart_item ) {
-			$product = $cart_item['data'];
-			$tiers   = self::get_tiers( $product->get_id() );
-			if ( empty( $tiers ) ) {
+			// Setting it back to base when no tier applies matters, otherwise an
+			// earlier discount sticks when someone lowers the quantity again.
+			$prices = self::get_tier_prices( $cart_item['data'], $cart_item['quantity'] );
+			if ( ! $prices ) {
 				continue;
 			}
 
-			$regular_price = (float) $product->get_regular_price();
-			if ( $regular_price <= 0 ) {
-				continue;
-			}
-
-			$base_price = $product->is_on_sale() ? (float) $product->get_sale_price() : $regular_price;
-			$tier       = self::get_tier_for_quantity( $tiers, $cart_item['quantity'] );
-
-			if ( $tier ) {
-				$discounted = round( $regular_price * ( 1 - $tier['percent'] / 100 ), 2 );
-				$product->set_price( min( $discounted, $base_price ) );
-			} else {
-				// No tier at this qty, put it back. Matters when someone lowers the
-				// quantity again, otherwise the earlier discount sticks.
-				$product->set_price( $base_price );
-			}
+			$cart_item['data']->set_price( $prices['now'] );
 		}
+	}
+
+	/**
+	 * Line total on a discounted row becomes: old price struck through, new price,
+	 * and what they saved. Covers the cart, checkout and most mini carts, which
+	 * all render the line total through this filter.
+	 */
+	public static function subtotal_html( $subtotal, $cart_item ) {
+		$product = $cart_item['data'];
+		$qty     = $cart_item['quantity'];
+		$prices  = self::get_tier_prices( $product, $qty );
+
+		if ( ! $prices || $prices['now'] >= $prices['base'] ) {
+			return $subtotal;
+		}
+
+		// wc_get_price_to_display follows the shop's inc/ex tax display setting,
+		// so these line up with however the rest of the cart is showing prices.
+		$was = wc_get_price_to_display( $product, array( 'price' => $prices['base'], 'qty' => $qty ) );
+		$now = wc_get_price_to_display( $product, array( 'price' => $prices['now'], 'qty' => $qty ) );
+
+		return '<span class="dg-tier-pricing">'
+			. '<del class="dg-tier-was">' . wc_price( $was ) . '</del>'
+			. '<ins class="dg-tier-now">' . wc_price( $now ) . '</ins>'
+			. '<span class="dg-tier-saving">'
+			. sprintf(
+				/* translators: %s: amount saved, already formatted as a price */
+				esc_html__( 'Save %s', 'dg-quantity-discounts' ),
+				wc_price( $was - $now )
+			)
+			. '</span></span>';
 	}
 
 	// Shows "Bulk discount: 2.5% off" under the item in the cart and at checkout,
