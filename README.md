@@ -1,23 +1,26 @@
 # DG Quantity Discounts
 
-Per-product "Buy more, save more" quantity discount tiers for WooCommerce.
+Per-product "buy more, save more" pricing for WooCommerce.
 
-Set quantity tiers on any product; the discount shows as a table on the product
-page and applies automatically in the cart and at checkout. No settings page, no
-page builder, no dependencies beyond WooCommerce.
+Set quantity tiers on a product, the discount shows up as a small table on the
+product page and gets applied automatically once the customer's quantity reaches
+it. No settings page, no upsells, nothing to configure globally. Just WooCommerce.
+
+I wrote this because every bulk pricing plugin I looked at either wanted a
+subscription or dragged in half a page builder to render a four row table.
 
 ## What it does
 
-- Adds a **Quantity discount tiers** repeater to each product's Product data →
-  General/Pricing panel (min quantity + discount %). Leave it empty and the
-  product behaves normally.
-- Renders a "Buy more, save more" table on the product page, between the
-  quantity input and the Add to Cart button, with the row matching the
-  currently-entered quantity highlighted.
-- Applies the discounted price in the cart and at checkout, and adds a
-  "Bulk discount: X% off" note to the line item.
-- Mini-cart, checkout, order emails and the stored order all pick the price up
-  automatically, since they read the same cart/order objects.
+- Adds a **Quantity discount tiers** repeater to the product's Product data >
+  General panel, under the price fields. Min quantity and a percentage. Leave it
+  empty and nothing changes for that product.
+- Puts a "Buy more, save more" table on the product page between the quantity
+  box and the Add to Cart button, and highlights whichever row the current
+  quantity falls into.
+- Applies the discount in the cart and at checkout, with a
+  "Bulk discount: 2.5% off" note on the line item so it doesn't look like a bug.
+- Mini cart, checkout, order emails and the saved order all follow along for
+  free, they're reading the same cart and order objects.
 
 ## Requirements
 
@@ -25,49 +28,51 @@ page builder, no dependencies beyond WooCommerce.
 - WooCommerce 6.0+
 - PHP 7.4+
 
-Compatible with High-Performance Order Storage (HPOS).
+HPOS compatible.
 
 ## Installing
 
-1. Copy the plugin folder into `wp-content/plugins/`.
-2. Activate it from Plugins.
+Drop the folder in `wp-content/plugins/` and activate it. That's it.
 
 ## Data
 
-Tiers are stored per product in the post meta key `_dgqd_tiers`, as an array of
-`array( 'min_qty' => int, 'percent' => float )`, sorted ascending. Nothing else
-is written — no options, no custom tables — so deactivating the plugin leaves
-prices back at their normal values with the tier data intact.
+Tiers live in one post meta key per product, `_dgqd_tiers`, as an array of
+`array( 'min_qty' => int, 'percent' => float )` sorted low to high. No options,
+no custom tables. Deactivate and prices go straight back to normal with the tier
+data still sat there if you turn it back on.
 
-## Notes / gotchas
+## Things that will bite you if you change it
 
-Non-obvious things worth knowing before changing anything:
+Most of these cost me an hour each, so they're written down.
 
-- **`woocommerce_after_add_to_cart_quantity`, not
-  `woocommerce_before_add_to_cart_button`.** The latter fires *before* the
-  quantity input as well, not between quantity and the button.
-- **Price is recomputed from `get_regular_price()` on every pass** of
-  `woocommerce_before_calculate_totals`, never adjusted in place. That hook can
-  fire multiple times per request, and adjusting an already-adjusted price
-  compounds the discount.
-- **`min( $discounted, $base_price )`** stops a small bulk percentage from
-  overriding a bigger sale price already set on the product.
-- **The discount applies pre-tax**, and tax is then calculated on the reduced
-  amount. That is the correct order of operations for VAT, and matches how
-  WooCommerce's own sale prices and coupons behave.
-- **Flex cart forms**: if the active theme lays out `form.cart` as a flex row,
-  the block needs `flex-basis: 100%` and *no* `max-width` to drop onto its own
-  line — a flex item's wrap size is clamped by `max-width`, which silently
-  defeats it. See the theme compatibility section in
-  `assets/css/frontend.css`.
+- **The hook is `woocommerce_after_add_to_cart_quantity`.** Not
+  `woocommerce_before_add_to_cart_button`, which sounds right but fires above
+  the quantity box too, so your table ends up in the wrong place and you start
+  fighting it with CSS instead of just moving the hook.
+- **Always recalculate from `get_regular_price()`.**
+  `woocommerce_before_calculate_totals` fires several times in a single request.
+  If you adjust whatever price is currently set rather than starting fresh, you
+  discount the discount and the totals drift on every refresh.
+- **The `min()` in the pricing loop is load bearing.** It stops a 2% bulk tier
+  from overriding a product that's already 30% off in a sale. Cheapest price for
+  the customer wins.
+- **Discount comes off the ex-tax price**, tax is then worked out on the reduced
+  amount. Right way round for VAT, and it's what WooCommerce does for its own
+  sale prices and coupons anyway.
+- **Flex cart forms.** If the theme lays `form.cart` out as a flex row, the block
+  needs `flex-basis: 100%` and no `max-width` or it just sits next to the
+  quantity box. A flex item's wrap width gets clamped by `max-width`, so setting
+  one there kills the basis without any obvious sign it's done so. There's a
+  longer note in `assets/css/frontend.css`.
 
 ## Styling
 
-The plugin ships neutral defaults for its own markup. Theme-specific
-presentation - mini-cart and checkout item-meta styling in particular - is
-intentionally left alone, since restyling `dl.variation` would affect every
-item-meta on the site rather than just this one. Override the `dg-qty-tiers*`
-classes in your theme to restyle.
+Ships deliberately plain so it doesn't clash with whatever theme it lands in.
+Override the `dg-qty-tiers*` classes and you're away.
+
+The one thing it doesn't style is the cart line item note, because WooCommerce
+renders that as a `dl.variation` and touching that selector restyles every item
+meta on the site rather than just this one. Do that in your theme if you want it.
 
 ## License
 

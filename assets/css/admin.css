@@ -1,12 +1,12 @@
-/* ==========================================================================
-   DG Quantity Discounts — product edit screen
-   ========================================================================== */
+/* DG Quantity Discounts, product edit screen.
 
-/* WooCommerce's default .form-field label floats left assuming a single-line
-   label+input pair — wrong for a field whose content is a whole table, so the
-   label overlaps the description under it. Stack the label above instead.
-   !important throughout: WooCommerce's own admin field CSS sets these with
-   equal-or-higher specificity, so plain declarations lose the tie. */
+   Yes, !important on basically everything. WooCommerce's own admin field CSS
+   matches these at the same specificity and loads after us, so without it half
+   of this silently loses the tie and you're left wondering why nothing applied. */
+
+/* WC floats .form-field labels left, which assumes the field is a label plus one
+   input on a single line. Ours is a whole table, so the label ends up sitting on
+   top of the description. Stack it instead. */
 .dg-qty-tiers-field .form-field label {
 	float: none !important;
 	display: block !important;

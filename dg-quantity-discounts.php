@@ -19,11 +19,7 @@ define( 'DGQD_FILE', __FILE__ );
 define( 'DGQD_PATH', plugin_dir_path( __FILE__ ) );
 define( 'DGQD_URL', plugin_dir_url( __FILE__ ) );
 
-/**
- * Post meta key holding a product's tiers.
- *
- * Value is an array of array( 'min_qty' => int, 'percent' => float ), sorted ascending.
- */
+// Tiers live here, as array( array( 'min_qty' => 5, 'percent' => 2.5 ), ... ) sorted low to high.
 define( 'DGQD_META_KEY', '_dgqd_tiers' );
 
 final class DGQD_Plugin {
@@ -33,10 +29,8 @@ final class DGQD_Plugin {
 		add_action( 'plugins_loaded', array( __CLASS__, 'bootstrap' ) );
 	}
 
-	/**
-	 * This plugin only reads/writes product post meta and uses the cart API, so it is
-	 * compatible with High-Performance Order Storage.
-	 */
+	// We only touch post meta and the cart API, nothing that reads orders directly,
+	// so HPOS is fine. Without this WooCommerce flags the plugin as incompatible.
 	public static function declare_hpos_compatibility() {
 		if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {
 			\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', DGQD_FILE, true );
@@ -59,23 +53,21 @@ final class DGQD_Plugin {
 	}
 
 	private static function add_hooks() {
-		// Admin: tier repeater in the product Pricing panel
+		// admin
 		add_action( 'woocommerce_product_options_pricing', array( __CLASS__, 'render_admin_field' ) );
 		add_action( 'woocommerce_process_product_meta', array( __CLASS__, 'save_tiers' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_admin_assets' ) );
 
-		// Front end: the "Buy more, save more" table
+		// front end
 		add_action( 'woocommerce_after_add_to_cart_quantity', array( __CLASS__, 'render_product_table' ) );
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_frontend_assets' ) );
 
-		// Pricing + cart display
+		// the bit that actually does the discounting
 		add_action( 'woocommerce_before_calculate_totals', array( __CLASS__, 'apply_tier_pricing' ) );
 		add_filter( 'woocommerce_get_item_data', array( __CLASS__, 'cart_item_data' ), 10, 2 );
 	}
 
-	/* ---------------------------------------------------------------------
-	 * Data helpers
-	 * ------------------------------------------------------------------ */
+	/* ---- tiers ---- */
 
 	public static function get_tiers( $product_id ) {
 		$tiers = get_post_meta( $product_id, DGQD_META_KEY, true );
@@ -83,9 +75,8 @@ final class DGQD_Plugin {
 	}
 
 	/**
-	 * Highest tier the given quantity qualifies for, or null.
-	 *
-	 * Tiers are stored ascending, so the last match wins.
+	 * Best tier for a given quantity, or null if it doesn't reach the lowest one.
+	 * Tiers are saved low to high so we just keep overwriting, last match wins.
 	 */
 	public static function get_tier_for_quantity( $tiers, $quantity ) {
 		$applicable = null;
@@ -97,20 +88,19 @@ final class DGQD_Plugin {
 		return $applicable;
 	}
 
-	/** 2.50 => "2.5", 10.00 => "10" */
+	// 2.50 becomes "2.5", 10.00 becomes "10". Nobody wants to read "10.00% off".
 	public static function format_percent( $percent ) {
 		return rtrim( rtrim( number_format( (float) $percent, 2 ), '0' ), '.' );
 	}
 
-	/* ---------------------------------------------------------------------
-	 * Admin
-	 * ------------------------------------------------------------------ */
+	/* ---- admin ---- */
 
 	public static function enqueue_admin_assets( $hook ) {
 		if ( ! in_array( $hook, array( 'post.php', 'post-new.php' ), true ) ) {
 			return;
 		}
 
+		// get_post_type() isn't reliable on post-new.php this early, use the screen.
 		$screen = get_current_screen();
 		if ( ! $screen || 'product' !== $screen->post_type ) {
 			return;
@@ -174,8 +164,11 @@ final class DGQD_Plugin {
 	}
 
 	/**
-	 * Nonce and capability are already verified by WC_Admin_Meta_Boxes::save_meta_boxes()
-	 * before woocommerce_process_product_meta fires.
+	 * No nonce check here on purpose. WC_Admin_Meta_Boxes::save_meta_boxes() already
+	 * does the nonce and capability check before woocommerce_process_product_meta fires.
+	 *
+	 * Rows with a blank or zero value just get dropped, which doubles as the "delete
+	 * this tier" behaviour, so there's no separate delete handling.
 	 */
 	public static function save_tiers( $post_id ) {
 		$mins  = isset( $_POST['dgqd_tier_min_qty'] ) ? wp_unslash( $_POST['dgqd_tier_min_qty'] ) : array();
@@ -185,11 +178,14 @@ final class DGQD_Plugin {
 		foreach ( (array) $mins as $i => $min_qty ) {
 			$min_qty = absint( $min_qty );
 			$percent = isset( $pcts[ $i ] ) ? floatval( $pcts[ $i ] ) : 0;
+
+			// min 2, because a "discount" that kicks in at 1 is just the price.
 			if ( $min_qty >= 2 && $percent > 0 ) {
 				$tiers[] = array( 'min_qty' => $min_qty, 'percent' => $percent );
 			}
 		}
 
+		// Sorted on save so nothing downstream has to care what order they were typed in.
 		usort( $tiers, function ( $a, $b ) {
 			return $a['min_qty'] <=> $b['min_qty'];
 		} );
@@ -201,9 +197,7 @@ final class DGQD_Plugin {
 		}
 	}
 
-	/* ---------------------------------------------------------------------
-	 * Front end
-	 * ------------------------------------------------------------------ */
+	/* ---- front end ---- */
 
 	public static function enqueue_frontend_assets() {
 		if ( ! is_product() && ! is_cart() && ! is_checkout() ) {
@@ -217,6 +211,7 @@ final class DGQD_Plugin {
 			self::asset_version( 'assets/css/frontend.css' )
 		);
 
+		// JS is only for the row highlighting, so product pages only.
 		if ( is_product() ) {
 			wp_enqueue_script(
 				'dgqd-frontend',
@@ -229,9 +224,10 @@ final class DGQD_Plugin {
 	}
 
 	/**
-	 * Hooked to woocommerce_after_add_to_cart_quantity, which sits between the
-	 * quantity input and the Add to Cart button. (woocommerce_before_add_to_cart_button
-	 * is NOT the equivalent — it fires before the quantity input as well.)
+	 * Careful with the hook here. woocommerce_after_add_to_cart_quantity is the one
+	 * that sits between the qty box and the Add to Cart button.
+	 * woocommerce_before_add_to_cart_button sounds like it should be the same spot
+	 * but it isn't, that one fires above the qty box as well. Cost me an afternoon.
 	 */
 	public static function render_product_table() {
 		global $product;
@@ -256,6 +252,7 @@ final class DGQD_Plugin {
 					</thead>
 					<tbody>
 						<?php foreach ( $tiers as $i => $tier ) :
+							// Last row has no upper bound, so it reads "100+" instead of a range.
 							$next  = isset( $tiers[ $i + 1 ] ) ? $tiers[ $i + 1 ]['min_qty'] - 1 : null;
 							$range = $next ? $tier['min_qty'] . ' - ' . $next : $tier['min_qty'] . '+';
 							?>
@@ -271,16 +268,23 @@ final class DGQD_Plugin {
 		<?php
 	}
 
-	/* ---------------------------------------------------------------------
-	 * Pricing
-	 * ------------------------------------------------------------------ */
+	/* ---- pricing ---- */
 
 	/**
-	 * Applies the discounted unit price for whichever tier the line quantity reaches.
+	 * Sets the discounted unit price on any line that reaches a tier.
 	 *
-	 * The price is recomputed from get_regular_price() on every pass rather than
-	 * adjusted in place, because this hook can fire several times per request —
-	 * adjusting an already-adjusted price would compound the discount.
+	 * Two things to know before touching this:
+	 *
+	 * 1. This hook fires more than once per request (add to cart, qty update, the
+	 *    various checkout AJAX calls). Always work back from get_regular_price().
+	 *    If you adjust whatever price is currently set you end up discounting the
+	 *    already discounted price and the totals drift every refresh.
+	 *
+	 * 2. The min() is there so a small bulk % can't undercut a bigger sale price
+	 *    that's already on the product. Whichever is cheaper for the customer wins.
+	 *
+	 * Discount comes off the ex-tax price and tax gets worked out on the reduced
+	 * amount, which is both correct for VAT and what WC does for its own sales.
 	 */
 	public static function apply_tier_pricing( $cart ) {
 		if ( is_admin() && ! defined( 'DOING_AJAX' ) ) {
@@ -304,15 +308,17 @@ final class DGQD_Plugin {
 
 			if ( $tier ) {
 				$discounted = round( $regular_price * ( 1 - $tier['percent'] / 100 ), 2 );
-				// Never let a smaller bulk % override a bigger existing sale discount.
 				$product->set_price( min( $discounted, $base_price ) );
 			} else {
+				// No tier at this qty, put it back. Matters when someone lowers the
+				// quantity again, otherwise the earlier discount sticks.
 				$product->set_price( $base_price );
 			}
 		}
 	}
 
-	/** Adds a "Bulk discount: X% off" note to the cart/checkout line item. */
+	// Shows "Bulk discount: 2.5% off" under the item in the cart and at checkout,
+	// otherwise the price change looks like a bug to the customer.
 	public static function cart_item_data( $item_data, $cart_item ) {
 		$tiers = self::get_tiers( $cart_item['data']->get_id() );
 		if ( empty( $tiers ) ) {
@@ -329,8 +335,7 @@ final class DGQD_Plugin {
 		return $item_data;
 	}
 
-	/* ------------------------------------------------------------------ */
-
+	// filemtime so edits show up without having to bump the version every time.
 	private static function asset_version( $relative_path ) {
 		$file = DGQD_PATH . $relative_path;
 		return file_exists( $file ) ? filemtime( $file ) : DGQD_VERSION;

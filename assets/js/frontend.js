@@ -1,5 +1,6 @@
 /**
- * DG Quantity Discounts — highlights the tier row matching the quantity entered.
+ * Highlights whichever tier row the current quantity falls into.
+ * Purely cosmetic, the actual discount is worked out server side.
  */
 jQuery( function ( $ ) {
 
@@ -13,7 +14,7 @@ jQuery( function ( $ ) {
 		var qty  = parseInt( $( '.single_add_to_cart_button' ).closest( 'form' ).find( 'input.qty' ).val(), 10 ) || 1;
 		var best = null;
 
-		// Rows are ascending, so the last one the quantity reaches is the active tier.
+		// rows are in ascending order, so the last one we clear is the winner
 		$rows.removeClass( 'dg-active-tier' ).each( function () {
 			if ( qty >= parseInt( $( this ).data( 'min-qty' ), 10 ) ) {
 				best = $( this );
@@ -26,6 +27,8 @@ jQuery( function ( $ ) {
 	}
 
 	highlightTier();
+
+	// input as well as change, otherwise typing a qty does nothing until blur
 	$( document ).on( 'change input', 'form.cart input.qty', highlightTier );
 
 } );

@@ -1,6 +1,5 @@
-/* ==========================================================================
-   DG Quantity Discounts — front end
-   ========================================================================== */
+/* DG Quantity Discounts, front end.
+   Deliberately plain so it doesn't fight the theme. Override any of it. */
 
 .dg-qty-tiers {
 	margin-top: 16px;
@@ -52,28 +51,29 @@
 	border-bottom: none;
 }
 
-/* Row matching the quantity currently entered */
+/* whichever row the current qty falls into */
 .dg-qty-tiers-table tr.dg-active-tier td {
 	background: #f0fdf4;
 }
 
-/* --------------------------------------------------------------------------
-   Theme compatibility
-   Some themes lay out form.cart as a flex row (quantity | add to cart | ...).
-   The block is injected into that row, so without a full-width flex basis it
-   sits beside the quantity box instead of dropping onto its own line.
-   max-width must NOT be set on this element — a flex item's wrap size is
-   clamped by max-width, which silently defeats flex-basis:100%. The visible
-   width cap lives on .dg-qty-tiers-table instead.
-   Harmless on themes whose cart form is not a flex container.
-   -------------------------------------------------------------------------- */
+/* Theme compat.
+
+   Plenty of themes make form.cart a flex row (qty | add to cart | buy now).
+   We get injected into that row, so without a 100% basis the table just parks
+   itself next to the qty box instead of dropping to its own line.
+
+   Do NOT put a max-width on this rule. A flex item's wrap width gets clamped by
+   max-width, so capping it here quietly kills the flex-basis and you're back to
+   it sitting beside the qty box, which took embarrassingly long to work out.
+   The visible width cap goes on .dg-qty-tiers-table above.
+
+   Does nothing on themes where the cart form isn't flex, so it's safe to leave in. */
 .single-product form.cart .dg-qty-tiers {
 	flex: 1 1 100%;
 	width: 100%;
 	max-width: none;
 }
 
-/* Note: the "Bulk discount: X% off" line on cart/checkout items is rendered by
-   WooCommerce as <dl class="variation">, so it inherits whatever the active
-   theme styles that as. No styling is shipped for it here — restyling
-   dl.variation would affect every item-meta on the site, not just this one. */
+/* The "Bulk discount: x% off" line in the cart is a <dl class="variation">, so it
+   picks up whatever the theme does with those. Not styling it here on purpose,
+   that selector hits every item meta on the site and not just ours. */
