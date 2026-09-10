@@ -64,7 +64,7 @@ Non-obvious things worth knowing before changing anything:
 ## Styling
 
 The plugin ships neutral defaults for its own markup. Theme-specific
-presentation — mini-cart and checkout item-meta styling in particular — is
+presentation - mini-cart and checkout item-meta styling in particular - is
 intentionally left alone, since restyling `dl.variation` would affect every
 item-meta on the site rather than just this one. Override the `dg-qty-tiers*`
 classes in your theme to restyle.
